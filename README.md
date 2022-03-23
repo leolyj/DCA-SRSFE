@@ -6,16 +6,3 @@ This is the code related to "Deformation and Correspondence Aware Unsupervised S
 
 
 
-
-
-
-## Citation
-```
-@inproceedings{peng2021sparse,
-  title={Sparse-to-dense Feature Matching: Intra and Inter domain Cross-modal Learning in Domain Adaptation for 3D Semantic Segmentation},
-  author={Peng, Duo and Lei, Yinjie and Li, Wen and Zhang, Pingping and Guo, Yulan},
-  booktitle={Proceedings of the International Conference on Computer Vision (ICCV)},
-  year={2021},
-  publisher={IEEE}
-}
-```

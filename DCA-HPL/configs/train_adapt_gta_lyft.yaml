@@ -1,0 +1,82 @@
+ckpt_dir: checkpoints/train/ours_adapt_gta_lyft
+
+resume: checkpoints/trained_models/GTA_pretrained/gta_pretrained_45.pth.tar
+#resume_t: checkpoints/trained_models/GTA_pretrained/gta_pretrained_45.pth.tar
+
+
+arch: HPLFlowNet
+last_relu: False
+allow_less_points: False
+
+use_leaky: True
+bcn_use_bias: True
+bcn_use_norm: True
+
+custom_lr: True
+lr_switch_epochs: "0,110,220,260,300,340,380,420,615,700"
+lrs: "0.0001,7e-5,4.9e-5,3.43e-5,2.401e-5,1.6807e-5,1.17649e-5,1e-5,0.000007,0.0000049"
+
+# general args
+batch_size: 1
+epochs: 60  # 800
+
+alpha: 0.999
+
+# for model
+scales_filter_map: [[3., 1, -1, -1],
+                    [2., 1, -1, -1],
+                    [1., 1, 1, 1],
+                    [0.5, 1, 1, 1],
+                    [0.25, 1, 1, 1],
+                    [0.125, 1, 1, 1],
+                    [0.0625, 1, 1, 1],
+                    ]
+
+dim: 3
+num_points: 8192
+
+
+DEVICE: cuda
+cuda: 2
+
+evaluate: False
+
+
+dataset: gtasf
+source_dataset: gtasf
+target_dataset: lyft_target
+val_dataset: lyft
+remove_ground: True
+
+data_process:
+  DEPTH_THRESHOLD: 35.
+  NO_CORR: True
+
+# data augmentation
+aug_together:
+  degree_range: 0.0
+  shift_range: 1.
+  scale_low: 0.95
+  scale_high: 1.05
+  jitter_sigma: 0.01
+  jitter_clip: 0.00
+
+aug_pc2:
+  degree_range: 0.
+  shift_range: 0.0
+  jitter_sigma: 0.00
+  jitter_clip: 0.00
+
+# miscalleneous
+print_freq: 50
+workers: 4
+
+
+data_root: '/media/asus/bff416fa-b0ca-4c6a-b793-de319cc5ad0b/jz/GTAV'
+data_root_target: '/media/asus/bff416fa-b0ca-4c6a-b793-de319cc5ad0b/jz/lyft_scene_flow'
+data_root_lyft: '/media/asus/bff416fa-b0ca-4c6a-b793-de319cc5ad0b/jz/lyft_scene_flow'
+
+
+
+
+

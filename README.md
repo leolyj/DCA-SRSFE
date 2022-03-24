@@ -18,7 +18,7 @@ Some examples of our generated data (Ground Truth refers to the result of adding
 * Pytorch 1.8.0
 * CUDA 11.1
 
-## Data Preparation
+## Data preparation
 ### GTA-SF
 Download the [GTA-SF dataset](https://1drv.ms/u/s!Ap1U6ygZ8oBwhCJgydLCFJpfZyFD?e=6G4ngc) and organize all files as follows:
 ```
@@ -40,7 +40,7 @@ Download the official [Lyft Perception Dataset](https://level-5.global/data/perc
 ### KITTI Scene Flow
 We follow [HPLFlowNet](https://github.com/laoreja/HPLFlowNet) to preprocess [KITTI Scene Flow 2015](http://www.cvlibs.net/download.php?file=data_scene_flow.zip). Download and unzip it to 
 
-## Get Started
+## Get started
 ### Setup
 ```
 conda create -n DCA_SRSFE python=3.6
@@ -53,7 +53,7 @@ pip install tqdm
 pip install scikit-learn==0.24.2
 
 ```
-Setup for HPLFlowNet and pointnet2:
+Setup for [HPLFlowNet](https://github.com/laoreja/HPLFlowNet) and [Pointnet2.Pytorch](https://github.com/sshaoshuai/Pointnet2.PyTorch):
 ```
 cd models
 python build_khash_cffi.py
@@ -62,8 +62,18 @@ python setup.py install
 cd ../
 ```
 
+### Pretrained models
+Models pretrained on source domain and our checkpoints of synthetic-to-real domain adaptation can be found [here](https://1drv.ms/u/s!Ap1U6ygZ8oBwhBSpZjaMHM4CbrJM?e=Jw5khg). They should be organized as follows:
+```
+|—— checkpoints
+|   |── trained_models
+|   |   |── GTA_pretrained
+|   |   |—— FT3D_pretrained
+|   |   |—— to_Waymo
+|   |   |—— to_Lyft
+|   |   |—— to_KITTI
+```
 
-Trained models can be found in [Link](https://1drv.ms/u/s!Ap1U6ygZ8oBwhBSpZjaMHM4CbrJM?e=Jw5khg)
-
+### Inference
 
 ## Citation

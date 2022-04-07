@@ -23,7 +23,7 @@ Some examples of our generated data (Ground Truth refers to the result of adding
 ### GTA-SF
 Download the [GTA-SF dataset](https://1drv.ms/u/s!Ap1U6ygZ8oBwhCJgydLCFJpfZyFD?e=6G4ngc) and organize all files as follows:
 ```
-|—— dataset
+|—— data
 |   |── GTA-SF
 |   |   |── 00
 |   |   |—— 01
@@ -48,7 +48,7 @@ conda create -n DCA_SRSFE python=3.6
 conda activate DCA_SRSFE
 conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.1 -c pytorch -c conda-forge
 pip install numba==0.38.1
-pip install ciffi
+pip install cffi
 pip install pyyaml==5.3.1
 pip install tqdm
 pip install scikit-learn==0.24.2

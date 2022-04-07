@@ -47,7 +47,7 @@ We follow [HPLFlowNet](https://github.com/laoreja/HPLFlowNet) to preprocess [KIT
 conda create -n DCA_SRSFE python=3.6
 conda activate DCA_SRSFE
 conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.1 -c pytorch -c conda-forge
-pip install numba==0.38.1
+conda install numba=0.38.1
 pip install cffi
 pip install pyyaml==5.3.1
 pip install tqdm

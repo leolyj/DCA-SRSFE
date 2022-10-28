@@ -63,8 +63,14 @@ python generate_flow.py --train_dir TRAIN_DIR --valid_dir VALID_DIR
 3. Pack point clouds and scene flow labels into .npz files for training: ``` python save_npz.py --root_path ROOT_PATH ```
 
 ### Lyft
-1. Download the official [Lyft Perception Dataset](https://level-5.global/data/perception/) training dataset.
-2. Copy files under DCA-SRSFE/data_preprocessing/Lyft/ to /ST3D/pcdet/datasets/lyft/, then run:
+1. Download the official [Lyft Perception Dataset](https://level-5.global/data/perception/) training dataset. Then unpack train.tar and put them into the trainval folder.
+2. Copy files under DCA-SRSFE/data_preprocessing/Lyft/ to /ST3D/pcdet/datasets/lyft/.
+3. Install lyft_dataset_sdk before process lyft data: 
+``` 
+pip install -U lyft_dataset_sdk
+``` 
+* We modified the source codes (lyftdataset.py and data_classes.py) of lyft_dataset_sdk to include 'instance_token' in Box class. The modified files can be found in ./lyft_dataset_sdk. You can download them and replace the original files of lyft_dataset_sdk.
+run lyft_process:
 ``` 
 python lyft_process.py --save_dir SAVE_PATH --root_path ROOT_PATH 
 ```

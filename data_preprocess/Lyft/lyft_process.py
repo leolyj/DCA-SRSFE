@@ -33,191 +33,204 @@ def get_points(lidar_path):
     return points[:, :3]
 
 
-# TODO change save_dir and root_path
-save_dir = args.save_dir
-root_path = args.root_path
-# save_dir = '/share/data/lyft_scene_flow'
-# root_path = '/share/data/lyft'
+def proc(scenes):
+    for s_name in scenes:
+        print(s_name)
+        idx = available_scene_names.index(s_name)
+        scene = available_scenes[idx]
+        current_sample_token = scene['first_sample_token']
+        num_frame = 1
 
-version = 'trainval'  # ['trainval', 'one_scene', 'test']
-data_path = os.path.join(root_path, version)
-split_path = os.path.join(root_path, 'ImageSets')
+        while current_sample_token != '':
+            # print(num_frame)
+            sample_record = lyft.get('sample', current_sample_token)
+            # print(sample_record)
+            sd_rec = lyft.get('sample_data', sample_record['data']['LIDAR_TOP'])
 
-assert version in ['trainval', 'one_scene', 'test']
+            lidar_path = lyft.get_sample_data_path(sd_rec['token'])
+            ref_boxes_1 = lyft.get_boxes(sd_rec['token'])
+            # print(lidar_path)
+            # print('ref_boxes_1', ref_boxes_1)
 
-if version == 'trainval':
-    train_split_path = os.path.join(split_path, 'train.txt')
-    val_split_path = os.path.join(split_path, 'val.txt')
-elif version == 'test':
-    train_split_path = ''
-    val_split_path = os.path.join(split_path, 'test.txt')
-elif version == 'one_scene':
-    train_split_path = os.path.join(split_path, 'one_scene.txt')
-    val_split_path = os.path.join(split_path, 'one_scene.txt')
-else:
-    raise NotImplementedError
+            cs_rec = lyft.get("calibrated_sensor", sd_rec["calibrated_sensor_token"])
+            pose_rec = lyft.get("ego_pose", sd_rec["ego_pose_token"])
+            # print(Quaternion(cs_rec['rotation']).rotation_matrix, cs_rec['translation'])
+            # print(Quaternion(pose_rec['rotation']).rotation_matrix, pose_rec['translation'])
 
-train_scenes = [x.strip() for x in open(train_split_path).readlines()] if os.path.exists(train_split_path) else []
-val_scenes = [x.strip() for x in open(val_split_path).readlines()] if os.path.exists(val_split_path) else []
+            points = get_points(lidar_path)
+            # print(points.shape)
 
-lyft = LyftDataset(json_path=data_path + '/data', data_path=data_path, verbose=True)
+            next_sample_token = sample_record['next']
+            # print(next_sample_token)
+            if next_sample_token == '':
+                break
+            next_sample_record = lyft.get('sample', next_sample_token)
+            next_sd_rec = lyft.get('sample_data', next_sample_record['data']['LIDAR_TOP'])
+            # next_lidar_path, next_boxes, _ = lyft.get_sample_data(next_sd_rec['token'])
+            next_lidar_path = lyft.get_sample_data_path(next_sd_rec['token'])
+            ref_boxes_2 = lyft.get_boxes(next_sd_rec['token'])
+            next_cs_rec = lyft.get("calibrated_sensor", next_sd_rec["calibrated_sensor_token"])
+            next_pose_rec = lyft.get("ego_pose", next_sd_rec["ego_pose_token"])
+            next_points = get_points(next_lidar_path)
 
-available_scenes = lyft_utils.get_available_scenes(lyft)
-available_scene_names = [s['name'] for s in available_scenes]
-train_scenes = list(filter(lambda x: x in available_scene_names, train_scenes))
-val_scenes = list(filter(lambda x: x in available_scene_names, val_scenes))
+            # -------------------- ego-motion ------------------------------
+            rot_sensor_1 = Quaternion(cs_rec['rotation']).rotation_matrix
+            trans_sensor_1 = np.array(cs_rec['translation'])
+            rot_sensor_inv_1 = np.linalg.inv(rot_sensor_1)
+            rot_car_1 = Quaternion(pose_rec['rotation']).rotation_matrix
+            trans_car_1 = np.array(pose_rec['translation'])
+            rot_car_inv_1 = np.linalg.inv(rot_car_1)  # inverse rotation matrix
 
-print('%s: train scene(%d), val scene(%d)' % (version, len(train_scenes), len(val_scenes)))
+            rot_sensor_2 = Quaternion(next_cs_rec['rotation']).rotation_matrix
+            trans_sensor_2 = np.array(next_cs_rec['translation'])
+            rot_sensor_inv_2 = np.linalg.inv(rot_sensor_2)
+            rot_car_2 = Quaternion(next_pose_rec['rotation']).rotation_matrix
+            trans_car_2 = np.array(next_pose_rec['translation'])
+            rot_car_inv_2 = np.linalg.inv(rot_car_2)  # inverse rotation matrix
 
-ref_chans = ["LIDAR_TOP", "LIDAR_FRONT_LEFT", "LIDAR_FRONT_RIGHT"]
-for s_name in val_scenes:
-    print(s_name)
-    idx = available_scene_names.index(s_name)
-    scene = available_scenes[idx]
-    current_sample_token = scene['first_sample_token']
-    num_frame = 1
+            # -------------------- box-motion -------------------------------
+            locs_1 = np.array([b.center for b in ref_boxes_1]).reshape(-1, 3)
+            dims_1 = np.array([b.wlh for b in ref_boxes_1]).reshape(-1, 3)[:, [1, 0, 2]]  # wlh == > dxdydz (lwh)
+            velocity_1 = np.array([b.velocity for b in ref_boxes_1]).reshape(-1, 3)
+            rots_1 = np.array([lyft_utils.quaternion_yaw(b.orientation) for b in ref_boxes_1]).reshape(-1, 1)
+            names_1 = np.array([b.name for b in ref_boxes_1])
+            tokens_1 = np.array([b.token for b in ref_boxes_1])
+            inst_tokens_1 = np.array([b.instance_token for b in ref_boxes_1])
+            gt_boxes_1 = np.concatenate([locs_1, dims_1, rots_1, velocity_1[:, :2]], axis=1)
 
-    while current_sample_token != '':
-        # print(num_frame)
-        sample_record = lyft.get('sample', current_sample_token)
-        # print(sample_record)
-        sd_rec = lyft.get('sample_data', sample_record['data']['LIDAR_TOP'])
+            locs_2 = np.array([b.center for b in ref_boxes_2]).reshape(-1, 3)
+            dims_2 = np.array([b.wlh for b in ref_boxes_2]).reshape(-1, 3)[:, [1, 0, 2]]  # wlh == > dxdydz (lwh)
+            velocity_2 = np.array([b.velocity for b in ref_boxes_2]).reshape(-1, 3)
+            rots_2 = np.array([lyft_utils.quaternion_yaw(b.orientation) for b in ref_boxes_2]).reshape(-1, 1)
+            names_2 = np.array([b.name for b in ref_boxes_2])
+            tokens_2 = np.array([b.token for b in ref_boxes_2])
+            inst_tokens_2 = np.array([b.instance_token for b in ref_boxes_2])
+            gt_boxes_2 = np.concatenate([locs_2, dims_2, rots_2, velocity_2[:, :2]], axis=1)
 
-        lidar_path = lyft.get_sample_data_path(sd_rec['token'])
-        ref_boxes_1 = lyft.get_boxes(sd_rec['token'])
-        # print(lidar_path)
-        # print('ref_boxes_1', ref_boxes_1)
+            points_transform1 = copy.deepcopy(points)
+            points_transform2 = copy.deepcopy(next_points)
 
-        cs_rec = lyft.get("calibrated_sensor", sd_rec["calibrated_sensor_token"])
-        pose_rec = lyft.get("ego_pose", sd_rec["ego_pose_token"])
-        # print(Quaternion(cs_rec['rotation']).rotation_matrix, cs_rec['translation'])
-        # print(Quaternion(pose_rec['rotation']).rotation_matrix, pose_rec['translation'])
+            # ---------- sensor_coord -> car_coord -> global_coord ----------
+            points_transform1 = (points_transform1 @ rot_sensor_inv_1) + trans_sensor_1
+            points_transform2 = (points_transform2 @ rot_sensor_inv_2) + trans_sensor_2
+            points_transform1 = (points_transform1 @ rot_car_inv_1) + trans_car_1
+            points_transform2 = (points_transform2 @ rot_car_inv_2) + trans_car_2
+            # ---------- box motion in global_coord ----------
+            box_instance_1 = []
+            box_center_1 = []
+            box_wlh_1 = []
+            box_orientation_1 = []
+            for box_1 in ref_boxes_1:
+                box_instance_1.append(box_1.instance_token)
+                box_center_1.append(box_1.center)
+                box_wlh_1.append(box_1.wlh)
+                box_orientation_1.append(box_1.orientation)
 
-        points = get_points(lidar_path)
-        # print(points.shape)
+            box_pts_idxs = roiaware_pool3d_utils.points_in_boxes_gpu(
+                torch.from_numpy(points_transform2[:, 0:3]).unsqueeze(dim=0).float().cuda(),
+                torch.from_numpy(gt_boxes_2[:, 0:7]).unsqueeze(dim=0).float().cuda()
+            ).long().squeeze(dim=0).cpu().numpy()
 
-        next_sample_token = sample_record['next']
-        # print(next_sample_token)
-        if next_sample_token == '':
-            break
-        next_sample_record = lyft.get('sample', next_sample_token)
-        next_sd_rec = lyft.get('sample_data', next_sample_record['data']['LIDAR_TOP'])
-        # next_lidar_path, next_boxes, _ = lyft.get_sample_data(next_sd_rec['token'])
-        next_lidar_path = lyft.get_sample_data_path(next_sd_rec['token'])
-        ref_boxes_2 = lyft.get_boxes(next_sd_rec['token'])
-        next_cs_rec = lyft.get("calibrated_sensor", next_sd_rec["calibrated_sensor_token"])
-        next_pose_rec = lyft.get("ego_pose", next_sd_rec["ego_pose_token"])
-        next_points = get_points(next_lidar_path)
+            rgb_2 = 255 * np.ones_like(points_transform2, dtype=np.int32)
+            for n, box_2 in enumerate(ref_boxes_2):
+                instance_n = box_2.instance_token
+                if instance_n in box_instance_1:
+                    idx = box_instance_1.index(instance_n)
+                    loc_1 = box_center_1[idx]
+                    loc_2 = box_2.center
+                    trans_1_2 = loc_1 - loc_2
+                    # ang_1 = box_orientation_1[idx].radians
+                    # ang_2 = box_2.orientation.radians
+                    ang_1 = lyft_utils.quaternion_yaw(box_orientation_1[idx])
+                    ang_2 = lyft_utils.quaternion_yaw(box_2.orientation)
+                    angle = (ang_2 - ang_1)
+                    rotation_z = np.array([[np.cos(angle), -np.sin(angle), 0],
+                                           [np.sin(angle), np.cos(angle), 0],
+                                           [0, 0, 1]])
+                    # if angle != 0:
+                    # print(n, trans_1_2, angle)
+                    points_transform2[box_pts_idxs == n] = (points_transform2[
+                                                                    box_pts_idxs == n] - loc_2) @ rotation_z + loc_1
+                    rgb_2[box_pts_idxs == n] = [255, 0, 0]
 
-        # -------------------- ego-motion ------------------------------
-        rot_sensor_1 = Quaternion(cs_rec['rotation']).rotation_matrix
-        trans_sensor_1 = np.array(cs_rec['translation'])
-        rot_sensor_inv_1 = np.linalg.inv(rot_sensor_1)
-        rot_car_1 = Quaternion(pose_rec['rotation']).rotation_matrix
-        trans_car_1 = np.array(pose_rec['translation'])
-        rot_car_inv_1 = np.linalg.inv(rot_car_1)  # inverse rotation matrix
+                    # if (num_frame == 35) and (instance_n == 'c8ac146d6cef45bfadbec2f08737c79f'):
+                    #     print('num pts', sum(box_pts_idxs == n))
+            # print('total', sum(rgb_2 == [255, 0, 0]))
 
-        rot_sensor_2 = Quaternion(next_cs_rec['rotation']).rotation_matrix
-        trans_sensor_2 = np.array(next_cs_rec['translation'])
-        rot_sensor_inv_2 = np.linalg.inv(rot_sensor_2)
-        rot_car_2 = Quaternion(next_pose_rec['rotation']).rotation_matrix
-        trans_car_2 = np.array(next_pose_rec['translation'])
-        rot_car_inv_2 = np.linalg.inv(rot_car_2)  # inverse rotation matrix
+            points_transform1 = (((points_transform1 - trans_car_1) @ rot_car_1) - trans_sensor_1) @ rot_sensor_1
+            points_transform2 = (((points_transform2 - trans_car_1) @ rot_car_1) - trans_sensor_1) @ rot_sensor_1
 
-        # -------------------- box-motion -------------------------------
-        locs_1 = np.array([b.center for b in ref_boxes_1]).reshape(-1, 3)
-        dims_1 = np.array([b.wlh for b in ref_boxes_1]).reshape(-1, 3)[:, [1, 0, 2]]  # wlh == > dxdydz (lwh)
-        velocity_1 = np.array([b.velocity for b in ref_boxes_1]).reshape(-1, 3)
-        rots_1 = np.array([lyft_utils.quaternion_yaw(b.orientation) for b in ref_boxes_1]).reshape(-1, 1)
-        names_1 = np.array([b.name for b in ref_boxes_1])
-        tokens_1 = np.array([b.token for b in ref_boxes_1])
-        inst_tokens_1 = np.array([b.instance_token for b in ref_boxes_1])
-        gt_boxes_1 = np.concatenate([locs_1, dims_1, rots_1, velocity_1[:, :2]], axis=1)
+            sf = (points_transform2 - next_points).astype(np.float32)  # label
 
-        locs_2 = np.array([b.center for b in ref_boxes_2]).reshape(-1, 3)
-        dims_2 = np.array([b.wlh for b in ref_boxes_2]).reshape(-1, 3)[:, [1, 0, 2]]  # wlh == > dxdydz (lwh)
-        velocity_2 = np.array([b.velocity for b in ref_boxes_2]).reshape(-1, 3)
-        rots_2 = np.array([lyft_utils.quaternion_yaw(b.orientation) for b in ref_boxes_2]).reshape(-1, 1)
-        names_2 = np.array([b.name for b in ref_boxes_2])
-        tokens_2 = np.array([b.token for b in ref_boxes_2])
-        inst_tokens_2 = np.array([b.instance_token for b in ref_boxes_2])
-        gt_boxes_2 = np.concatenate([locs_2, dims_2, rots_2, velocity_2[:, :2]], axis=1)
+            not_ground_1 = points[:, -1] > (0.3 - trans_sensor_1[2])
+            not_ground_2 = next_points[:, -1] > (0.3 - trans_sensor_2[2])
+            is_ground_1 = points[:, -1] < (0.3 - trans_sensor_1[2])
+            is_ground_2 = next_points[:, -1] < (0.3 - trans_sensor_2[2])
+            front_1 = points[:, 0] < - abs(points[:, 1])
+            front_2 = next_points[:, 0] < - abs(next_points[:, 1])
 
-        points_transform1 = copy.deepcopy(points)
-        points_transform2 = copy.deepcopy(next_points)
+            remove_1 = not_ground_1 * front_1
+            remove_2 = not_ground_2 * front_2
 
-        # ---------- sensor_coord -> car_coord -> global_coord ----------
-        points_transform1 = (points_transform1 @ rot_sensor_inv_1) + trans_sensor_1
-        points_transform2 = (points_transform2 @ rot_sensor_inv_2) + trans_sensor_2
-        points_transform1 = (points_transform1 @ rot_car_inv_1) + trans_car_1
-        points_transform2 = (points_transform2 @ rot_car_inv_2) + trans_car_2
-        # ---------- box motion in global_coord ----------
-        box_instance_1 = []
-        box_center_1 = []
-        box_wlh_1 = []
-        box_orientation_1 = []
-        for box_1 in ref_boxes_1:
-            box_instance_1.append(box_1.instance_token)
-            box_center_1.append(box_1.center)
-            box_wlh_1.append(box_1.wlh)
-            box_orientation_1.append(box_1.orientation)
+            save_path_dir = os.path.join(os.path.join(save_dir, version), s_name)
+            if not os.path.exists(save_path_dir):
+                os.mkdir(save_path_dir)
+            savez_path = os.path.join(save_path_dir, str(num_frame) + '.npz')
+            print(savez_path)
+            # np.savez_compressed(savez_path, pc1=points[:, :3], pc2=next_points[:, :3], flow=sf, is_ground_1=is_ground_1,
+            #                     is_ground_2=is_ground_2)  # is_ground
+            np.savez_compressed(savez_path, pc1=points[:, :3][remove_1], pc2=next_points[:, :3][remove_2],
+                                flow=sf[remove_2])  # is_ground
 
-        box_pts_idxs = roiaware_pool3d_utils.points_in_boxes_gpu(
-            torch.from_numpy(points_transform2[:, 0:3]).unsqueeze(dim=0).float().cuda(),
-            torch.from_numpy(gt_boxes_2[:, 0:7]).unsqueeze(dim=0).float().cuda()
-        ).long().squeeze(dim=0).cpu().numpy()
+            current_sample_token = next_sample_token
 
-        rgb_2 = 255 * np.ones_like(points_transform2, dtype=np.int32)
-        for n, box_2 in enumerate(ref_boxes_2):
-            instance_n = box_2.instance_token
-            if instance_n in box_instance_1:
-                idx = box_instance_1.index(instance_n)
-                loc_1 = box_center_1[idx]
-                loc_2 = box_2.center
-                trans_1_2 = loc_1 - loc_2
-                # ang_1 = box_orientation_1[idx].radians
-                # ang_2 = box_2.orientation.radians
-                ang_1 = lyft_utils.quaternion_yaw(box_orientation_1[idx])
-                ang_2 = lyft_utils.quaternion_yaw(box_2.orientation)
-                angle = (ang_2 - ang_1)
-                rotation_z = np.array([[np.cos(angle), -np.sin(angle), 0],
-                                       [np.sin(angle), np.cos(angle), 0],
-                                       [0, 0, 1]])
-                # if angle != 0:
-                # print(n, trans_1_2, angle)
-                points_transform2[box_pts_idxs == n] = (points_transform2[
-                                                                box_pts_idxs == n] - loc_2) @ rotation_z + loc_1
-                rgb_2[box_pts_idxs == n] = [255, 0, 0]
+            num_frame += 1
+            
+           
+if __name__ == '__main__':
+    # TODO change save_dir and root_path
+    save_dir = args.save_dir
+    root_path = args.root_path
+    # save_dir = '/share/data/lyft_scene_flow'
+    # root_path = '/share/data/lyft'
 
-                # if (num_frame == 35) and (instance_n == 'c8ac146d6cef45bfadbec2f08737c79f'):
-                #     print('num pts', sum(box_pts_idxs == n))
-        # print('total', sum(rgb_2 == [255, 0, 0]))
+    version = 'trainval'  # ['trainval', 'one_scene', 'test']
+    data_path = os.path.join(root_path, version)
+    split_path = os.path.join(root_path, 'ImageSets')
 
-        points_transform1 = (((points_transform1 - trans_car_1) @ rot_car_1) - trans_sensor_1) @ rot_sensor_1
-        points_transform2 = (((points_transform2 - trans_car_1) @ rot_car_1) - trans_sensor_1) @ rot_sensor_1
+    assert version in ['trainval', 'one_scene', 'test']
 
-        sf = (points_transform2 - next_points).astype(np.float32)  # label
+    if version == 'trainval':
+        train_split_path = os.path.join(split_path, 'train.txt')
+        val_split_path = os.path.join(split_path, 'val.txt')
+    elif version == 'test':
+        train_split_path = ''
+        val_split_path = os.path.join(split_path, 'test.txt')
+    elif version == 'one_scene':
+        train_split_path = os.path.join(split_path, 'one_scene.txt')
+        val_split_path = os.path.join(split_path, 'one_scene.txt')
+    else:
+        raise NotImplementedError
 
-        not_ground_1 = points[:, -1] > (0.3 - trans_sensor_1[2])
-        not_ground_2 = next_points[:, -1] > (0.3 - trans_sensor_2[2])
-        is_ground_1 = points[:, -1] < (0.3 - trans_sensor_1[2])
-        is_ground_2 = next_points[:, -1] < (0.3 - trans_sensor_2[2])
-        front_1 = points[:, 0] < - abs(points[:, 1])
-        front_2 = next_points[:, 0] < - abs(next_points[:, 1])
+    train_scenes = [x.strip() for x in open(train_split_path).readlines()] if os.path.exists(train_split_path) else []
+    val_scenes = [x.strip() for x in open(val_split_path).readlines()] if os.path.exists(val_split_path) else []
 
-        remove_1 = not_ground_1 * front_1
-        remove_2 = not_ground_2 * front_2
+    lyft = LyftDataset(json_path=data_path + '/data', data_path=data_path, verbose=True)
 
-        save_path_dir = os.path.join(os.path.join(save_dir, version), s_name)
-        if not os.path.exists(save_path_dir):
-            os.mkdir(save_path_dir)
-        savez_path = os.path.join(save_path_dir, str(num_frame) + '.npz')
-        print(savez_path)
-        # np.savez_compressed(savez_path, pc1=points[:, :3], pc2=next_points[:, :3], flow=sf, is_ground_1=is_ground_1,
-        #                     is_ground_2=is_ground_2)  # is_ground
-        np.savez_compressed(savez_path, pc1=points[:, :3][remove_1], pc2=next_points[:, :3][remove_2],
-                            flow=sf[remove_2])  # is_ground
+    available_scenes = lyft_utils.get_available_scenes(lyft)
+    available_scene_names = [s['name'] for s in available_scenes]
+    train_scenes = list(filter(lambda x: x in available_scene_names, train_scenes))
+    val_scenes = list(filter(lambda x: x in available_scene_names, val_scenes))
 
-        current_sample_token = next_sample_token
+    print('%s: train scene(%d), val scene(%d)' % (version, len(train_scenes), len(val_scenes)))
 
-        num_frame += 1
+    ref_chans = ["LIDAR_TOP", "LIDAR_FRONT_LEFT", "LIDAR_FRONT_RIGHT"]
+    
+    print('processing train scenes ...')
+    proc(train_scenes)
+    print('done!')
+    
+    print('processing val scenes ...')
+    proc(val_scenes)
+    print('done!')
+            

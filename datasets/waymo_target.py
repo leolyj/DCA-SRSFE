@@ -67,7 +67,7 @@ class waymo_target(data.Dataset):
         self.save_dir_path = os.path.join(self.root, 'waymo/scene_flow_data_npz')
         self.data_path = os.path.join(self.root, 'waymo_processed_data')
         self.label_path = os.path.join(self.root, 'scene_flow_label/' + self.split)
-        self.split_dir = os.path.join(self.root, 'ImageSets/' + (self.split + '.txt'))
+        self.split_dir = os.path.join(self.root, 'waymo/ImageSets/' + (self.split + '.txt'))
         self.sample_sequence_list = [x.strip() for x in open(self.split_dir).readlines()]
 
         # remove one segment which largely records ground points

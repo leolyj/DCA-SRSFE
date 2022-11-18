@@ -55,7 +55,8 @@ Download the [GTA-SF dataset](https://1drv.ms/u/s!Ap1U6ygZ8oBwhCJgydLCFJpfZyFD?e
 
 ### Waymo
 Please follow the paper [Scalable Scene Flow from Point Clouds in the Real World](https://arxiv.org/pdf/2103.01306.pdf) and go to [Waymo Open Dataset](https://waymo.com/open/download/) for registration, then download [scene flow labels](https://console.cloud.google.com/storage/browser/waymo_open_dataset_scene_flow).
-1. Process raw data into point clouds. We use the same way as [ST3D](https://github.com/CVMI-Lab/ST3D/blob/master/docs/GETTING_STARTED.md#waymo-open-dataset). It is recommended to create a new conda environment to process data.
+1. Process raw data into point clouds. We use the same way as [ST3D](https://github.com/CVMI-Lab/ST3D/blob/master/docs/GETTING_STARTED.md#waymo-open-dataset). It is recommended to create a new conda environment to process data. 
+(* We use waymo-open-dataset-tf-2-4-0==1.3.1 to process Waymo dataset, the earlier version (1.2.0) may not support 'range_image_flow_compressed')
 2. Copy files under DCA-SRSFE/data_preprocessing/Waymo/ to /ST3D/pcdet/datasets/waymo/. Extract scene flow labels by running: 
 ``` 
 python generate_flow.py --train_dir TRAIN_DIR --valid_dir VALID_DIR 
